@@ -2,24 +2,65 @@
 
 #define OLED_ADDR 0x3C  // Replace with your display's I2C address
 
+//Ensuring all the functions are compiled before the void setup begins as we've defined the functions post the main body of the code
+void CUSTOM_RECTANGLE(int WIDTH, int HEIGHT, int HEIGHT_OFFSET = 0, int WIDTH_OFFSET = 0);
+void MIDDLE_SQUARE();
+void ADDRESSAL_MODE(byte MODE);
+void START_COL(byte LOW_NIB, byte HIGH_NIB);
 void SEND_CMD(byte INP_CMD, byte DATA_1 = 0, byte DATA_2 = 0, byte DATA_3 = 0, byte DATA_4 = 0, byte DATA_5 = 0, byte DATA_6 = 0, byte DATA_7 = 0);
-
+void SET_CONTRAST(byte CONTRAST);
+void CLEAR_DISPLAY();
+void INIT_DISPLAY();
 
 void setup() {
   Serial.begin(9600);
   Wire.begin();
 
-  INIT_DISPLAY();                                                                         
-  SEND_CMD(0x20, 0x02);
-  START_COL(0x00, 0x10);
+  INIT_DISPLAY();                                 //Initializing the display according to page 64 of the data sheet                                                                                           
+  ADDRESSAL_MODE(0x20);                           //Setting addressal mode to page addressal
+  START_COL(0x00, 0x10);                          //Setting the start column to be the first column in the OLED
 
-  CLEAR_DISP();
+  CLEAR_DISPLAY();                                //Clearing the GDDRAM of any data before beginning to write to the display
   uint8_t array[] = {};
   
-  MIDDLE_SQUARE();
+  //MIDDLE_SQUARE();                                //Writing a square in the middle of the OLED display
+
+  //delay(2000);
+  CLEAR_DISPLAY();
+
+  CUSTOM_RECTANGLE(50, 24, 20, 39);
 }
 
 void loop() {
+}
+
+void CUSTOM_RECTANGLE(int WIDTH, int HEIGHT, int HEIGHT_OFFSET = 0, int WIDTH_OFFSET = 0){
+  uint8_t FILLED_ARRAY[64][128] = {0};
+  int MAX_WIDTH = WIDTH_OFFSET + WIDTH;
+  int MAX_HEIGHT = HEIGHT_OFFSET + HEIGHT;
+
+  for(int i = WIDTH_OFFSET ; i < WIDTH + WIDTH_OFFSET ; i++){
+    for(int j = HEIGHT_OFFSET ; j < HEIGHT + HEIGHT_OFFSET; j++){
+      FILLED_ARRAY[i][j] = 1;
+    }
+  }
+
+  int MAX_PAGE = (MAX_HEIGHT/8);
+  for(uint8_t PAGE = (HEIGHT_OFFSET/8) ; PAGE < MAX_PAGE ; PAGE++){
+    uint8_t PAGE_ADJ = PAGE + 176;
+    uint8_t UPPER_NIBBLE = WIDTH_OFFSET & 0b00001111;
+    uint8_t LOWER_NIBBLE = (0b0001 << 4) | ((WIDTH_OFFSET & 11110000) >> 4);
+    SEND_CMD(LOWER_NIBBLE);
+    SEND_CMD(UPPER_NIBBLE);
+    SEND_CMD(PAGE_ADJ);
+    for(uint8_t COL = 0 ; COL < WIDTH ; COL ++){
+      Wire.beginTransmission(OLED_ADDR);
+      Wire.write(0x40);
+      Wire.write(0b11111111);
+      Wire.endTransmission();
+      delay(50);
+    }
+  }
 }
 
 void MIDDLE_SQUARE(){
@@ -75,7 +116,8 @@ void SET_CONTRAST(byte CONTRAST){
   SEND_CMD(0x81, CONTRAST);                       //Contrast can be from 0x00 to 0x7F i.e. 0 to 256
 }
 
-void CLEAR_DISP(){
+//Function to clear the display
+void CLEAR_DISPLAY(){
   //Setting start and end column in the page addressing mode. 0x00 is the 0th line and 0x7F is the 128th line.
   Wire.beginTransmission(OLED_ADDR);
   Wire.write(0x00);
