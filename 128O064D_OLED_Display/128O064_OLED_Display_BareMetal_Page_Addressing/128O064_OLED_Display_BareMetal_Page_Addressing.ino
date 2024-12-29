@@ -3,6 +3,8 @@
 #define OLED_ADDR 0x3C  // Replace with your display's I2C address
 
 //Ensuring all the functions are compiled before the void setup begins as we've defined the functions post the main body of the code
+void START_SCROLLING_VERTI_HORI(bool IS_LEFT, bool VERT_ONLY = 0, int SCROLL_GAP = 6, int PG_START = 1, int PG_END = 8, int VERT_OFFSET = 1);
+void START_SCROLLING_HORI(bool IS_LEFT, int PG_START = 1, int SCROLL_GAP = 6, int PG_END = 8);
 void CUSTOM_RECTANGLE(int WIDTH, int HEIGHT, int HEIGHT_OFFSET = 0, int WIDTH_OFFSET = 0);
 void MIDDLE_SQUARE();
 void ADDRESSAL_MODE(byte MODE);
@@ -17,22 +19,48 @@ void setup() {
   Wire.begin();
 
   INIT_DISPLAY();                                 //Initializing the display according to page 64 of the data sheet                                                                                           
-  ADDRESSAL_MODE(0x20);                           //Setting addressal mode to page addressal
+  ADDRESSAL_MODE(0x02);                           //Setting addressal mode to page addressal
   START_COL(0x00, 0x10);                          //Setting the start column to be the first column in the OLED
 
   CLEAR_DISPLAY();                                //Clearing the GDDRAM of any data before beginning to write to the display
-  uint8_t array[] = {};
-  
-  //MIDDLE_SQUARE();                                //Writing a square in the middle of the OLED display
+  uint8_t array[] ={};
 
-  //delay(2000);
-  CLEAR_DISPLAY();
-
-  CUSTOM_RECTANGLE(50, 24, 20, 39);
+  MIDDLE_SQUARE();
+  START_SCROLLING_VERTI_HORI(1, 1);
+  delay(5000);
+  START_SCROLLING_HORI(0);
 }
 
 void loop() {
 }
+
+void START_SCROLLING_VERTI_HORI(bool IS_LEFT, bool VERT_ONLY = 0, int SCROLL_GAP = 6, int PG_START = 1, int PG_END = 8, int VERT_OFFSET = 1){
+  if(VERT_ONLY){PG_START = 1; PG_END = 1;}
+  Wire.beginTransmission(OLED_ADDR);
+  Wire.write(0x00);
+  Wire.write(41+IS_LEFT);
+  Wire.write(0x00);
+  Wire.write(PG_START);
+  Wire.write(SCROLL_GAP);
+  Wire.write(PG_END);
+  Wire.write(VERT_OFFSET);
+  Wire.endTransmission();
+  SEND_CMD(0x2F);
+}
+void START_SCROLLING_HORI(bool IS_LEFT, int PG_START = 1, int SCROLL_GAP = 6, int PG_END = 8){
+  Wire.beginTransmission(OLED_ADDR);
+  Wire.write(0x00);
+  Wire.write(38+IS_LEFT);
+  Wire.write(0x00);
+  Wire.write(PG_START);
+  Wire.write(SCROLL_GAP);
+  Wire.write(PG_END);
+  Wire.write(0x00);
+  Wire.write(0xFF);
+  Wire.write(0x2F);
+  Wire.endTransmission();
+}
+
 
 void CUSTOM_RECTANGLE(int WIDTH, int HEIGHT, int HEIGHT_OFFSET = 0, int WIDTH_OFFSET = 0){
   uint8_t FILLED_ARRAY[64][128] = {0};
@@ -46,7 +74,7 @@ void CUSTOM_RECTANGLE(int WIDTH, int HEIGHT, int HEIGHT_OFFSET = 0, int WIDTH_OF
   }
 
   int MAX_PAGE = (MAX_HEIGHT/8);
-  for(uint8_t PAGE = (HEIGHT_OFFSET/8) ; PAGE < MAX_PAGE ; PAGE++){
+  for(uint8_t PAGE = (HEIGHT_OFFSET/8) ; PAGE < (MAX_PAGE); PAGE++){
     uint8_t PAGE_ADJ = PAGE + 176;
     uint8_t UPPER_NIBBLE = WIDTH_OFFSET & 0b00001111;
     uint8_t LOWER_NIBBLE = (0b0001 << 4) | ((WIDTH_OFFSET & 11110000) >> 4);
@@ -58,7 +86,6 @@ void CUSTOM_RECTANGLE(int WIDTH, int HEIGHT, int HEIGHT_OFFSET = 0, int WIDTH_OF
       Wire.write(0x40);
       Wire.write(0b11111111);
       Wire.endTransmission();
-      delay(50);
     }
   }
 }
@@ -76,7 +103,7 @@ void MIDDLE_SQUARE(){
         Wire.write(0x40);                         //Sending the write prefix to inform the GDDRAM that the next command should be written
         Wire.write(0b11111111);                   //Setting all pixels in all COM lines to 1 in each column and page
         Wire.endTransmission();
-        delay(50);                                //Adding a small delay so that you can see the writing onto the display
+      //delay(50);                                //Adding a small delay so that you can see the writing onto the display
     }
   }
 }
@@ -118,21 +145,6 @@ void SET_CONTRAST(byte CONTRAST){
 
 //Function to clear the display
 void CLEAR_DISPLAY(){
-  //Setting start and end column in the page addressing mode. 0x00 is the 0th line and 0x7F is the 128th line.
-  Wire.beginTransmission(OLED_ADDR);
-  Wire.write(0x00);
-  Wire.write(0x21);
-  Wire.write(0x00);
-  Wire.write(0x7F);
-  Wire.endTransmission();
-  //Setting start and end page in page addressing mode. 0x00 is the 1st page and 0x07 is the 8th page.
-  Wire.beginTransmission(OLED_ADDR);
-  Wire.write(0x00);
-  Wire.write(0x22);
-  Wire.write(0x00);
-  Wire.write(0x07);
-  Wire.endTransmission();
-
   //Writing the entire hostel blank by setting all the bits to 0x00.
   for(uint8_t page = 0 ; page < 8 ; page ++){
     SEND_CMD(page+176);       //In the page addressing mode, after the column reaches the end, the page does not increment. This line increments the page with the loop
@@ -157,5 +169,6 @@ void INIT_DISPLAY(){
   SEND_CMD(0xA6);             //Display mode is normal and not inverted. Send 0xA7 to make it invered
   SEND_CMD(0xD5, 0x80);       //Seting the divide ratio D and the oscillator frequency F_{OSC} o 1 and 64. Check the command table for more details
   SEND_CMD(0x8D, 0x14);       //Enabling charge pump  
+  SEND_CMD(0x2E);             //Stopping scrolling in case anything is happening
   SEND_CMD(0xAF);             //Turn Display on
 }
